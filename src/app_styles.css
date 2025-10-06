@@ -1,0 +1,40 @@
+/* Tailwind CSS já é usado no projeto, mas caso queira customizações adicionais, você pode criar este arquivo */
+
+/* src/index.css ou src/App.css */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Personalizações adicionais */
+
+body {
+  background-color: #f3f4f6; /* cinza claro */
+  font-family: 'Inter', sans-serif;
+}
+
+h1, h2, h3 {
+  color: #1f2937; /* cinza escuro */
+}
+
+input, select, button {
+  outline: none;
+  transition: all 0.2s ease-in-out;
+}
+
+button:hover {
+  cursor: pointer;
+}
+
+table th, table td {
+  padding: 0.5rem;
+  text-align: center;
+}
+
+table th {
+  background-color: #e5e7eb; /* cinza claro para cabeçalho */
+}
+
+table td {
+  border: 1px solid #d1d5db; /* borda cinza */
+}
