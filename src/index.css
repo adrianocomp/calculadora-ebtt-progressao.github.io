@@ -1,13 +1,73 @@
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== Estilos globais personalizados ===== */
+
+html, body {
+  @apply bg-gray-50 text-gray-800 font-sans min-h-screen;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+/* ===== Cartão principal ===== */
+.app-container {
+  @apply max-w-3xl mx-auto mt-10 bg-white shadow-lg rounded-2xl p-8;
+}
+
+/* ===== Título principal ===== */
+.app-title {
+  @apply text-2xl font-semibold text-center mb-6 text-blue-700;
+}
+
+/* ===== Campos de entrada ===== */
+label {
+  @apply block text-sm font-medium text-gray-700 mb-1;
+}
+
+input, select {
+  @apply w-full border border-gray-300 rounded-lg px-3 py-2 mb-4 text-gray-800
+         focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition;
+}
+
+/* ===== Botão principal ===== */
+button {
+  @apply w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition;
+}
+
+/* ===== Resultado ===== */
+.result-container {
+  @apply mt-6 p-4 border border-blue-200 bg-blue-50 rounded-lg;
+}
+
+.result-title {
+  @apply text-lg font-semibold text-blue-800 mb-2;
+}
+
+.result-text {
+  @apply text-gray-700 leading-relaxed;
+}
+
+/* ===== Tabelas de detalhamento ===== */
+.table-container {
+  @apply mt-6 overflow-x-auto;
+}
+
+table {
+  @apply min-w-full border border-gray-300 rounded-lg text-sm;
+}
+
+th {
+  @apply bg-blue-100 text-left px-4 py-2 font-medium text-blue-800 border-b;
+}
+
+td {
+  @apply px-4 py-2 border-b text-gray-700;
+}
+
+tr:nth-child(even) {
+  @apply bg-gray-50;
+}
+
+/* ===== Rodapé ===== */
+footer {
+  @apply text-center text-xs text-gray-500 mt-8;
 }

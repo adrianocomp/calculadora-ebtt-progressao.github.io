@@ -1,22 +1,33 @@
 import React, { useState } from 'react';
-
 export default function CalculadoraPrejuizoEBTT() {
   const [dados, setDados] = useState({
     dataInicioRecebido: '',
-    nivelRecebido: 'D301',
     dataCorreto: '',
-    nivelCorreto: 'D302',
     dataFinal: '',
-    salarioD301: 12862.13,
-    salarioD302: 13376.61,
-    salarioD303: 15309.9,
-    salarioD304: 15998.84,
     juros: 0.5,
     correcao: 0.0,
   });
 
   const [resultado, setResultado] = useState(null);
   const [detalhamento, setDetalhamento] = useState([]);
+
+  const tabelas = [
+    { ano: 2017, mes: 8, D301: 11323.71, D302: 11629.58, D303: 12060.77, D304: 12512.71, D401: 15806.58, D402: 16325.34 },
+    { ano: 2018, mes: 8, D301: 11561.91, D302: 11950.86, D303: 12411.89, D304: 12893.12, D401: 16199.24, D402: 16790.46 },
+    { ano: 2019, mes: 8, D301: 11800.12, D302: 12272.12, D303: 12763.01, D304: 13273.52, D401: 16591.91, D402: 17255.91 },
+    { ano: 2023, mes: 5, D301: 12862.13, D302: 13376.61, D303: 13911.69, D304: 14468.14, D401: 18085.19, D402: 18808.60 },
+    { ano: 2025, mes: 1, D301: 14019.74, D302: 14650.62, D303: 15309.90, D304: 15998.84, D401: 19758.57, D402: 20647.71 }
+  ];
+
+  function obterSalario(ano, mes, nivel) {
+    for (let i = tabelas.length - 1; i >= 0; i--) {
+      const t = tabelas[i];
+      if (ano > t.ano || (ano === t.ano && mes >= t.mes)) {
+        return t[nivel];
+      }
+    }
+    return tabelas[0][nivel];
+  }
 
   function calcularPrejuizo() {
     if (!dados.dataInicioRecebido || !dados.dataCorreto || !dados.dataFinal) {
@@ -26,10 +37,9 @@ export default function CalculadoraPrejuizoEBTT() {
 
     const inicio = new Date(dados.dataCorreto);
     const fim = new Date(dados.dataFinal);
-    const meses = (fim.getFullYear() - inicio.getFullYear()) * 12 + (fim.getMonth() - inicio.getMonth()) + 1;
+    let meses = (fim.getFullYear() - inicio.getFullYear()) * 12 + (fim.getMonth() - inicio.getMonth()) + 1;
+    if (meses > 60) meses = 60; // Limite máximo de 60 meses
 
-    let salarioRecebido = dados.salarioD301;
-    let salarioCorreto = dados.salarioD302;
     let totalNominal = 0;
     let totalCorrigido = 0;
     const linhas = [];
@@ -37,9 +47,18 @@ export default function CalculadoraPrejuizoEBTT() {
     for (let i = 0; i < meses; i++) {
       const dataAtual = new Date(inicio);
       dataAtual.setMonth(inicio.getMonth() + i);
+      const ano = dataAtual.getFullYear();
+      const mes = dataAtual.getMonth() + 1;
 
-      if (i >= 24 && i < 48) salarioCorreto = dados.salarioD303;
-      if (i >= 48) salarioCorreto = dados.salarioD304;
+      let salarioRecebido = obterSalario(ano, mes, 'D301');
+      let salarioCorreto = obterSalario(ano, mes, 'D302');
+
+      // Progressões futuras: após 24 e 48 meses
+      if (i >= 24 && i < 48) {
+        salarioCorreto = obterSalario(ano, mes, 'D303');
+      } else if (i >= 48) {
+        salarioCorreto = obterSalario(ano, mes, 'D304');
+      }
 
       const diferenca = salarioCorreto - salarioRecebido;
       const ferias = diferenca / 3 / 12;
@@ -70,6 +89,7 @@ export default function CalculadoraPrejuizoEBTT() {
       meses,
       totalNominal: totalNominal.toFixed(2),
       totalCorrigido: totalCorrigido.toFixed(2),
+      aviso: meses === 60 ? 'O cálculo foi limitado a 60 meses.' : ''
     });
 
     setDetalhamento(linhas);
@@ -82,34 +102,25 @@ export default function CalculadoraPrejuizoEBTT() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto bg-white rounded-2xl shadow-md">
-      <h1 className="text-2xl font-bold mb-4 text-center">Calculadora de Prejuízo EBTT</h1>
-      <h2 className="text-2xl font-bold mb-4 text-center">Desenvolvido por Adriano Santos</h2>
+      <h1 className="text-2xl font-bold mb-4 text-center">Calculadora de Perdas Salariais - Reenquadramento EBTT</h1>
+      <h5 className="text-base font-bold mb-4 text-center">Desenvolvido por Adriano Santos - IFMG Ribeirão das Neves</h5>
+      <h5 className="text-sm font-bold mb-4 text-center"> Isenção de responsabilidade: Os valores são aproximados para o professor ter ideia do prejuízo financeiro. Para fins processuais, peritos são contratados para o cálculo exato.</h5>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium">Data em que começou a receber o nível D301:</label>
+          <label className="block text-sm font-medium">Data em que você foi acelerado para o nível D301:</label>
           <input type="date" name="dataInicioRecebido" value={dados.dataInicioRecebido} onChange={handleChange} className="border rounded p-2 w-full" />
         </div>
         <div>
           <label className="block text-sm font-medium">Nível recebido:</label>
-          <select name="nivelRecebido" value={dados.nivelRecebido} onChange={handleChange} className="border rounded p-2 w-full">
-            <option>D301</option>
-            <option>D302</option>
-            <option>D303</option>
-            <option>D304</option>
-          </select>
+          <input type="text" value="D301" disabled className="border rounded p-2 w-full bg-gray-100" />
         </div>
         <div>
-          <label className="block text-sm font-medium">Data que deveria ter progredido:</label>
+          <label className="block text-sm font-medium">Data correta que deveria ter progredido para o nível D302:</label>
           <input type="date" name="dataCorreto" value={dados.dataCorreto} onChange={handleChange} className="border rounded p-2 w-full" />
         </div>
         <div>
           <label className="block text-sm font-medium">Nível correto:</label>
-          <select name="nivelCorreto" value={dados.nivelCorreto} onChange={handleChange} className="border rounded p-2 w-full">
-            <option>D301</option>
-            <option>D302</option>
-            <option>D303</option>
-            <option>D304</option>
-          </select>
+          <input type="text" value="D302" disabled className="border rounded p-2 w-full bg-gray-100" />
         </div>
         <div>
           <label className="block text-sm font-medium">Data final de cálculo:</label>
@@ -132,6 +143,7 @@ export default function CalculadoraPrejuizoEBTT() {
           <p className="text-lg font-semibold">Período de cálculo: {resultado.periodo}</p>
           <p className="text-lg">Total nominal (sem juros/correção): <strong>R$ {resultado.totalNominal}</strong></p>
           <p className="text-lg">Total corrigido (juros + correção): <strong>R$ {resultado.totalCorrigido}</strong></p>
+          {resultado.aviso && <p className="text-red-600 font-medium">{resultado.aviso}</p>}
           <p className="text-sm text-gray-600">Período total: {resultado.meses} meses</p>
         </div>
       )}
