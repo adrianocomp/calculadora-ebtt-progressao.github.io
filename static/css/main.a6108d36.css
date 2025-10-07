@@ -1,0 +1,2 @@
+@tailwind base;@tailwind components;@tailwind utilities;.app-container,.app-title,.result-container,.result-text,.result-title,.table-container,body,button,footer,html,input,label,select,table,td,th,tr:nth-child(2n){@apply text-center text-xs text-gray-500 mt-8}
+/*# sourceMappingURL=main.a6108d36.css.map*/
