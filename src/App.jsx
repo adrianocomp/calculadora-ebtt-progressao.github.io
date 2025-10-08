@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+
 export default function CalculadoraPrejuizoEBTT() {
   const [dados, setDados] = useState({
     dataInicioRecebido: '',
@@ -38,11 +39,15 @@ export default function CalculadoraPrejuizoEBTT() {
     const inicio = new Date(dados.dataCorreto);
     const fim = new Date(dados.dataFinal);
     let meses = (fim.getFullYear() - inicio.getFullYear()) * 12 + (fim.getMonth() - inicio.getMonth()) + 1;
-    if (meses > 60) meses = 60; // Limite máximo de 60 meses
+    const limiteMeses = 60;
 
     let totalNominal = 0;
     let totalCorrigido = 0;
+    let totalNominal60 = 0;
+    let totalCorrigido60 = 0;
     const linhas = [];
+
+    const inicio60 = Math.max(0, meses - limiteMeses);
 
     for (let i = 0; i < meses; i++) {
       const dataAtual = new Date(inicio);
@@ -54,11 +59,8 @@ export default function CalculadoraPrejuizoEBTT() {
       let salarioCorreto = obterSalario(ano, mes, 'D302');
 
       // Progressões futuras: após 24 e 48 meses
-      if (i >= 24 && i < 48) {
-        salarioCorreto = obterSalario(ano, mes, 'D303');
-      } else if (i >= 48) {
-        salarioCorreto = obterSalario(ano, mes, 'D304');
-      }
+      if (i >= 24 && i < 48) salarioCorreto = obterSalario(ano, mes, 'D303');
+      else if (i >= 48) salarioCorreto = obterSalario(ano, mes, 'D304');
 
       const diferenca = salarioCorreto - salarioRecebido;
       const ferias = diferenca / 3 / 12;
@@ -68,11 +70,16 @@ export default function CalculadoraPrejuizoEBTT() {
       const jurosMensal = dados.juros / 100;
       const correcaoMensal = dados.correcao / 100;
       const fator = Math.pow(1 + jurosMensal + correcaoMensal, meses - i);
-
       const valorCorrigido = bruto * fator;
 
       totalNominal += bruto;
       totalCorrigido += valorCorrigido;
+
+      // Soma apenas os últimos 60 meses
+      if (i >= inicio60) {
+        totalNominal60 += bruto;
+        totalCorrigido60 += valorCorrigido;
+      }
 
       linhas.push({
         mesAno: dataAtual.toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' }),
@@ -89,7 +96,9 @@ export default function CalculadoraPrejuizoEBTT() {
       meses,
       totalNominal: totalNominal.toFixed(2),
       totalCorrigido: totalCorrigido.toFixed(2),
-      aviso: meses === 60 ? 'O cálculo foi limitado a 60 meses.' : ''
+      totalNominal60: totalNominal60.toFixed(2),
+      totalCorrigido60: totalCorrigido60.toFixed(2),
+      aviso: meses > limiteMeses ? `O cálculo foi limitado aos últimos ${limiteMeses} meses para retroação.` : ''
     });
 
     setDetalhamento(linhas);
@@ -104,8 +113,9 @@ export default function CalculadoraPrejuizoEBTT() {
     <div className="p-6 max-w-5xl mx-auto bg-white rounded-2xl shadow-md">
       <h1 className="text-2xl font-bold mb-4 text-center">Calculadora de Perdas Salariais - Reenquadramento EBTT</h1>
       <h5 className="text-base font-bold mb-4 text-center">Desenvolvido por Adriano Santos - IFMG Ribeirão das Neves</h5>
-      <h5 className="text-sm text-red-600 font-bold mb-4 text-center"> Isenção de responsabilidade: Os valores são aproximados para o professor ter ideia do prejuízo financeiro. Para fins processuais, peritos são contratados para o cálculo exato.</h5>
+      <h5 className="text-sm text-red-600 font-bold mb-4 text-center">Isenção de responsabilidade: Valores aproximados para o professor ter ideia do prejuízo financeiro.</h5>
       <h5 className="text-sm text-blue-600 font-bold mb-4 text-center">ADIFMG - Associação dos Docentes do IFMG</h5>
+
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium">Data em que você foi acelerado para o nível D301:</label>
@@ -144,6 +154,12 @@ export default function CalculadoraPrejuizoEBTT() {
           <p className="text-lg font-semibold">Período de cálculo: {resultado.periodo}</p>
           <p className="text-lg">Total nominal (sem juros/correção): <strong>R$ {resultado.totalNominal}</strong></p>
           <p className="text-lg">Total corrigido (juros + correção): <strong>R$ {resultado.totalCorrigido}</strong></p>
+          {resultado.meses > 60 && (
+            <>
+              <p className="text-lg">Total últimos 60 meses (sem juros/correção): <strong>R$ {resultado.totalNominal60}</strong></p>
+              <p className="text-lg">Total últimos 60 meses (com juros + correção): <strong>R$ {resultado.totalCorrigido60}</strong></p>
+            </>
+          )}
           {resultado.aviso && <p className="text-red-600 font-medium">{resultado.aviso}</p>}
           <p className="text-sm text-gray-600">Período total: {resultado.meses} meses</p>
         </div>
