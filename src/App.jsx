@@ -104,8 +104,8 @@ export default function CalculadoraPrejuizoEBTT() {
     <div className="p-6 max-w-5xl mx-auto bg-white rounded-2xl shadow-md">
       <h1 className="text-2xl font-bold mb-4 text-center">Calculadora de Perdas Salariais - Reenquadramento EBTT</h1>
       <h5 className="text-base font-bold mb-4 text-center">Desenvolvido por Adriano Santos - IFMG Ribeirão das Neves</h5>
-      <h5 className="text-sm font-bold mb-4 text-center"> Isenção de responsabilidade: Os valores são aproximados para o professor ter ideia do prejuízo financeiro. Para fins processuais, peritos são contratados para o cálculo exato.</h5>
-      <h5 className="text-sm font-bold mb-4 text-center">ADIFMG - Associação dos Docentes do Instituto Federal de Minas Gerais</h5>
+      <h5 className="text-sm text-red-600 font-bold mb-4 text-center"> Isenção de responsabilidade: Os valores são aproximados para o professor ter ideia do prejuízo financeiro. Para fins processuais, peritos são contratados para o cálculo exato.</h5>
+      <h5 className="text-sm text-blue-600 font-bold mb-4 text-center">ADIFMG - Associação dos Docentes do IFMG</h5>
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium">Data em que você foi acelerado para o nível D301:</label>
