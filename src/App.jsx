@@ -30,83 +30,67 @@ export default function CalculadoraPrejuizoEBTT() {
     return tabelas[0][nivel];
   }
 
-  // diferença em meses: se mesma data -> 0; um ano depois -> 12
+  function parseDateToMonthStart(dateStr) {
+    if (!dateStr) return null;
+    const [y, m] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, 1);
+  }
+
   function monthsDiff(start, end) {
     return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
   }
 
-  function nivelPorMesesDesde(baseMeses, offsetNivelStartIndex = 0) {
-    // baseMeses: número de meses desde a referência
-    // offsetNivelStartIndex: 0 => começa em D301; 1 => começa em D302
-    const niveis = ['D301','D302','D303','D304','D401','D402'];
-    const idx = offsetNivelStartIndex + Math.floor(Math.max(0, baseMeses) / 24);
+  function nivelPorMesesDesde(baseMeses, nivelInicialIndex) {
+    const niveis = ['D301', 'D302', 'D303', 'D304', 'D401', 'D402'];
+    const idx = nivelInicialIndex + Math.floor(baseMeses / 24);
     return niveis[Math.min(idx, niveis.length - 1)];
   }
 
-  function parseDateToMonthStart(dateStr) {
-    // dateStr vem de input type=date no formato "YYYY-MM-DD"
-    if (!dateStr) return null;
-    const parts = dateStr.split('-');
-    const y = parseInt(parts[0], 10);
-    const m = parseInt(parts[1], 10);
-    return new Date(y, m - 1, 1);
-  }
-
   function calcularPrejuizo() {
-    if (!dados.dataInicioRecebido || !dados.dataCorreto || !dados.dataFinal) {
-      alert('Preencha todas as datas antes de calcular.');
+    const { dataInicioRecebido, dataCorreto, dataFinal, juros, correcao } = dados;
+    if (!dataInicioRecebido || !dataCorreto || !dataFinal) {
+      alert('Preencha todas as datas.');
       return;
     }
 
-    // Parse seguro para o primeiro dia do mês
-    const baseRecebido = parseDateToMonthStart(dados.dataInicioRecebido); // aceleração (D301)
-    const baseCorreto = parseDateToMonthStart(dados.dataCorreto); // data em que deveria ter progredido (início do cálculo)
-    const fim = parseDateToMonthStart(dados.dataFinal); // inclui o mês final
+    const baseRecebido = parseDateToMonthStart(dataInicioRecebido);
+    const baseCorreto = parseDateToMonthStart(dataCorreto);
+    const fim = parseDateToMonthStart(dataFinal);
 
     if (!baseRecebido || !baseCorreto || !fim) {
       alert('Datas inválidas.');
       return;
     }
     if (baseCorreto > fim) {
-      alert('A data correta de progressão deve ser anterior ou igual à data final.');
+      alert('A data correta de progressão deve ser anterior à data final.');
       return;
     }
 
-    // meses totais (incluir mês inicial e mês final)
-    const mesesTotais = monthsDiff(baseCorreto, fim) + 1; // ex: baseCorreto=jan/2019, fim=dez/2025 -> inclui dez/2025
-
+    let current = new Date(baseCorreto.getFullYear(), baseCorreto.getMonth(), 1);
     const linhas = [];
     let totalNominal = 0;
     let totalCorrigido = 0;
+    const jurosMensal = Number(juros) / 100;
+    const correcaoMensal = Number(correcao) / 100;
 
-    const jurosMensal = Number(dados.juros) / 100;
-    const correcaoMensal = Number(dados.correcao) / 100;
-
-    // itera mês a mês incluindo o mês final
-    let current = new Date(baseCorreto.getFullYear(), baseCorreto.getMonth(), 1);
-    for (let i = 0; i < mesesTotais; i++) {
+    while (current <= fim) {
       const ano = current.getFullYear();
-      const mes = current.getMonth() + 1; // 1..12
+      const mes = current.getMonth() + 1;
 
-      // meses desde a aceleração (para nível recebido)
-      const msDesdeRecebido = monthsDiff(baseRecebido, current); // 0 se same month
-      // meses desde data correta (para nível correto) - 0 para o mês baseCorreto
-      const msDesdeCorreto = monthsDiff(baseCorreto, current);
+      const mesesDesdeRecebido = monthsDiff(baseRecebido, current);
+      const mesesDesdeCorreto = monthsDiff(baseCorreto, current);
 
-      const nivelRecebido = nivelPorMesesDesde(msDesdeRecebido, 0); // começa em D301 no índice 0
-      const nivelCorreto = nivelPorMesesDesde(msDesdeCorreto, 1); // começa em D302 => offset 1
+      const nivelRecebido = nivelPorMesesDesde(Math.max(0, mesesDesdeRecebido), 0);
+      const nivelCorreto = nivelPorMesesDesde(Math.max(0, mesesDesdeCorreto), 1);
 
       const salarioRecebido = obterSalario(ano, mes, nivelRecebido);
       const salarioCorreto = obterSalario(ano, mes, nivelCorreto);
 
-      const diffSalario = Math.max(0, salarioCorreto - salarioRecebido);
+      const diff = Math.max(0, salarioCorreto - salarioRecebido);
+      const ferias = diff / 36;
+      const decimo = diff / 12;
+      const bruto = diff + ferias + decimo;
 
-      // férias: 1/3 anual => proporcional mensal = diff/36 ; 13º proporcional mensal = diff/12
-      const ferias = diffSalario / 36;
-      const decimo = diffSalario / 12;
-      const bruto = diffSalario + ferias + decimo;
-
-      // meses até o fim (se mesmo mês => 0)
       const mesesAteFim = monthsDiff(current, fim);
       const fator = Math.pow(1 + jurosMensal + correcaoMensal, mesesAteFim);
       const valorCorrigido = bruto * fator;
@@ -118,103 +102,89 @@ export default function CalculadoraPrejuizoEBTT() {
         mesAno: current.toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' }),
         nivelRecebido,
         nivelCorreto,
-        diferenca: diffSalario.toFixed(2),
+        diferenca: diff.toFixed(2),
         ferias: ferias.toFixed(2),
         decimo: decimo.toFixed(2),
         bruto: bruto.toFixed(2),
         valorCorrigido: valorCorrigido.toFixed(2),
-        // numérico para cálculos posteriores
         brutoNum: bruto,
         valorCorrigidoNum: valorCorrigido,
       });
 
-      // avança 1 mês
       current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
     }
 
-    // totais últimos 60 meses
-    const limite = 60;
-    const inicio60 = Math.max(0, linhas.length - limite);
-    const ultimos60 = linhas.slice(inicio60);
+    // últimos 60 meses
+    const ultimos60 = linhas.slice(-60);
     const totalNominal60 = ultimos60.reduce((s, r) => s + r.brutoNum, 0);
     const totalCorrigido60 = ultimos60.reduce((s, r) => s + r.valorCorrigidoNum, 0);
 
     setResultado({
       periodo: `${baseCorreto.toLocaleDateString('pt-BR')} a ${fim.toLocaleDateString('pt-BR')}`,
-      meses: mesesTotais,
+      meses: linhas.length,
       totalNominal: totalNominal.toFixed(2),
       totalCorrigido: totalCorrigido.toFixed(2),
       totalNominal60: totalNominal60.toFixed(2),
       totalCorrigido60: totalCorrigido60.toFixed(2),
-      aviso: linhas.length > limite ? `Detalhamento exibido completo; totais incluem todo o período e também últimos ${limite} meses.` : ''
     });
 
     setDetalhamento(linhas);
   }
 
   function handleChange(e) {
-    const { name, value } = e.target;
-    setDados({ ...dados, [name]: value });
+    setDados({ ...dados, [e.target.name]: e.target.value });
   }
 
   return (
     <div className="p-6 max-w-5xl mx-auto bg-white rounded-2xl shadow-md">
       <h1 className="text-2xl font-bold mb-4 text-center">Calculadora de Perdas Salariais - Reenquadramento EBTT</h1>
       <h5 className="text-base font-bold mb-4 text-center">Desenvolvido por Adriano Santos - IFMG Ribeirão das Neves</h5>
-      <h5 className="text-sm text-red-600 font-bold mb-4 text-center">Isenção de responsabilidade: Valores aproximados para o professor ter ideia do prejuízo financeiro.</h5>
-      <h5 className="text-sm text-blue-600 font-bold mb-4 text-center">ADIFMG - Associação dos Docentes do IFMG</h5>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium">Data em que você foi acelerado para o nível D301:</label>
-          <input type="date" name="dataInicioRecebido" value={dados.dataInicioRecebido} onChange={handleChange} className="border rounded p-2 w-full" />
+          <label>Data em que você foi acelerado para o nível D301:</label>
+          <input type="date" name="dataInicioRecebido" value={dados.dataInicioRecebido} onChange={handleChange} className="border p-2 rounded w-full" />
         </div>
         <div>
-          <label className="block text-sm font-medium">Nível recebido:</label>
+          <label>Nível recebido:</label>
           <input type="text" value="D301" disabled className="border rounded p-2 w-full bg-gray-100" />
         </div>
         <div>
-          <label className="block text-sm font-medium">Data correta que deveria ter progredido para o nível D302:</label>
-          <input type="date" name="dataCorreto" value={dados.dataCorreto} onChange={handleChange} className="border rounded p-2 w-full" />
+          <label>Data correta que deveria ter progredido para o nível D302:</label>
+          <input type="date" name="dataCorreto" value={dados.dataCorreto} onChange={handleChange} className="border p-2 rounded w-full" />
         </div>
         <div>
-          <label className="block text-sm font-medium">Nível correto:</label>
+          <label>Nível correto:</label>
           <input type="text" value="D302" disabled className="border rounded p-2 w-full bg-gray-100" />
         </div>
         <div>
-          <label className="block text-sm font-medium">Data final de cálculo:</label>
-          <input type="date" name="dataFinal" value={dados.dataFinal} onChange={handleChange} className="border rounded p-2 w-full" />
+          <label>Data final de cálculo:</label>
+          <input type="date" name="dataFinal" value={dados.dataFinal} onChange={handleChange} className="border p-2 rounded w-full" />
         </div>
         <div>
-          <label className="block text-sm font-medium">Juros moratórios (% ao mês):</label>
-          <input type="number" name="juros" value={dados.juros} onChange={handleChange} step="0.1" className="border rounded p-2 w-full" />
+          <label>Juros moratórios (%/mês):</label>
+          <input type="number" name="juros" value={dados.juros} onChange={handleChange} className="border p-2 rounded w-full" />
         </div>
         <div>
-          <label className="block text-sm font-medium">Correção monetária (% ao mês):</label>
-          <input type="number" name="correcao" value={dados.correcao} onChange={handleChange} step="0.1" className="border rounded p-2 w-full" />
+          <label>Correção monetária (%/mês):</label>
+          <input type="number" name="correcao" value={dados.correcao} onChange={handleChange} className="border p-2 rounded w-full" />
         </div>
       </div>
 
-      <button onClick={calcularPrejuizo} className="mt-6 w-full bg-blue-600 text-white p-3 rounded-xl font-semibold hover:bg-blue-700 transition">Calcular Prejuízo</button>
+      <button onClick={calcularPrejuizo} className="mt-4 w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700">Calcular</button>
 
       {resultado && (
-        <div className="mt-6 p-4 bg-green-100 border border-green-300 rounded-xl">
-          <p className="text-lg font-semibold">Período de cálculo: {resultado.periodo}</p>
-          <p className="text-lg">Total nominal (sem juros/correção): <strong>R$ {resultado.totalNominal}</strong></p>
-          <p className="text-lg">Total corrigido (juros + correção): <strong>R$ {resultado.totalCorrigido}</strong></p>
-          {resultado.meses > 60 && (
-            <>
-              <p className="text-lg">Total últimos 60 meses (sem juros/correção): <strong>R$ {resultado.totalNominal60}</strong></p>
-              <p className="text-lg">Total últimos 60 meses (com juros + correção): <strong>R$ {resultado.totalCorrigido60}</strong></p>
-            </>
-          )}
-          {resultado.aviso && <p className="text-red-600 font-medium">{resultado.aviso}</p>}
-          <p className="text-sm text-gray-600">Período total: {resultado.meses} meses</p>
+        <div className="mt-6 bg-green-100 p-4 rounded-xl border border-green-300">
+          <p><strong>Período:</strong> {resultado.periodo}</p>
+          <p><strong>Total nominal:</strong> R$ {resultado.totalNominal}</p>
+          <p><strong>Total corrigido:</strong> R$ {resultado.totalCorrigido}</p>
+          <p><strong>Últimos 60 meses (nominal):</strong> R$ {resultado.totalNominal60}</p>
+          <p><strong>Últimos 60 meses (corrigido):</strong> R$ {resultado.totalCorrigido60}</p>
         </div>
       )}
 
       {detalhamento.length > 0 && (
-        <div className="mt-6 overflow-x-auto">
+        <div className="mt-4 overflow-x-auto">
           <table className="w-full border text-sm">
             <thead className="bg-gray-100">
               <tr>
@@ -222,23 +192,23 @@ export default function CalculadoraPrejuizoEBTT() {
                 <th className="border p-2">Nível Recebido</th>
                 <th className="border p-2">Nível Correto</th>
                 <th className="border p-2">Diferença</th>
-                <th className="border p-2">1/3 Férias</th>
-                <th className="border p-2">13º Proporcional</th>
+                <th className="border p-2">Férias (1/3)</th>
+                <th className="border p-2">13º</th>
                 <th className="border p-2">Total Bruto</th>
-                <th className="border p-2">Com Juros + Correção</th>
+                <th className="border p-2">Corrigido</th>
               </tr>
             </thead>
             <tbody>
-              {detalhamento.map((linha, idx) => (
-                <tr key={idx} className="text-center">
-                  <td className="border p-2">{linha.mesAno}</td>
-                  <td className="border p-2">{linha.nivelRecebido}</td>
-                  <td className="border p-2">{linha.nivelCorreto}</td>
-                  <td className="border p-2">R$ {linha.diferenca}</td>
-                  <td className="border p-2">R$ {linha.ferias}</td>
-                  <td className="border p-2">R$ {linha.decimo}</td>
-                  <td className="border p-2">R$ {linha.bruto}</td>
-                  <td className="border p-2 font-semibold">R$ {linha.valorCorrigido}</td>
+              {detalhamento.map((l, i) => (
+                <tr key={i} className="text-center">
+                  <td className="border p-2">{l.mesAno}</td>
+                  <td className="border p-2">{l.nivelRecebido}</td>
+                  <td className="border p-2">{l.nivelCorreto}</td>
+                  <td className="border p-2">R$ {l.diferenca}</td>
+                  <td className="border p-2">R$ {l.ferias}</td>
+                  <td className="border p-2">R$ {l.decimo}</td>
+                  <td className="border p-2">R$ {l.bruto}</td>
+                  <td className="border p-2 font-semibold">R$ {l.valorCorrigido}</td>
                 </tr>
               ))}
             </tbody>
