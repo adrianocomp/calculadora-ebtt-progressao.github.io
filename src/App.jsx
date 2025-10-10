@@ -30,75 +30,123 @@ export default function CalculadoraPrejuizoEBTT() {
     return tabelas[0][nivel];
   }
 
+  // diferença em meses: se mesma data -> 0; um ano depois -> 12
+  function monthsDiff(start, end) {
+    return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+  }
+
+  function nivelPorMesesDesde(baseMeses, offsetNivelStartIndex = 0) {
+    // baseMeses: número de meses desde a referência
+    // offsetNivelStartIndex: 0 => começa em D301; 1 => começa em D302
+    const niveis = ['D301','D302','D303','D304','D401','D402'];
+    const idx = offsetNivelStartIndex + Math.floor(Math.max(0, baseMeses) / 24);
+    return niveis[Math.min(idx, niveis.length - 1)];
+  }
+
+  function parseDateToMonthStart(dateStr) {
+    // dateStr vem de input type=date no formato "YYYY-MM-DD"
+    if (!dateStr) return null;
+    const parts = dateStr.split('-');
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    return new Date(y, m - 1, 1);
+  }
+
   function calcularPrejuizo() {
     if (!dados.dataInicioRecebido || !dados.dataCorreto || !dados.dataFinal) {
       alert('Preencha todas as datas antes de calcular.');
       return;
     }
 
-    const inicio = new Date(dados.dataCorreto);
-    const fim = new Date(dados.dataFinal);
-    let meses = (fim.getFullYear() - inicio.getFullYear()) * 12 + (fim.getMonth() - inicio.getMonth()) + 1;
-    const limiteMeses = 60;
+    // Parse seguro para o primeiro dia do mês
+    const baseRecebido = parseDateToMonthStart(dados.dataInicioRecebido); // aceleração (D301)
+    const baseCorreto = parseDateToMonthStart(dados.dataCorreto); // data em que deveria ter progredido (início do cálculo)
+    const fim = parseDateToMonthStart(dados.dataFinal); // inclui o mês final
 
+    if (!baseRecebido || !baseCorreto || !fim) {
+      alert('Datas inválidas.');
+      return;
+    }
+    if (baseCorreto > fim) {
+      alert('A data correta de progressão deve ser anterior ou igual à data final.');
+      return;
+    }
+
+    // meses totais (incluir mês inicial e mês final)
+    const mesesTotais = monthsDiff(baseCorreto, fim) + 1; // ex: baseCorreto=jan/2019, fim=dez/2025 -> inclui dez/2025
+
+    const linhas = [];
     let totalNominal = 0;
     let totalCorrigido = 0;
-    let totalNominal60 = 0;
-    let totalCorrigido60 = 0;
-    const linhas = [];
 
-    const inicio60 = Math.max(0, meses - limiteMeses);
+    const jurosMensal = Number(dados.juros) / 100;
+    const correcaoMensal = Number(dados.correcao) / 100;
 
-    for (let i = 0; i < meses; i++) {
-      const dataAtual = new Date(inicio);
-      dataAtual.setMonth(inicio.getMonth() + i);
-      const ano = dataAtual.getFullYear();
-      const mes = dataAtual.getMonth() + 1;
+    // itera mês a mês incluindo o mês final
+    let current = new Date(baseCorreto.getFullYear(), baseCorreto.getMonth(), 1);
+    for (let i = 0; i < mesesTotais; i++) {
+      const ano = current.getFullYear();
+      const mes = current.getMonth() + 1; // 1..12
 
-      let salarioRecebido = obterSalario(ano, mes, 'D301');
-      let salarioCorreto = obterSalario(ano, mes, 'D302');
+      // meses desde a aceleração (para nível recebido)
+      const msDesdeRecebido = monthsDiff(baseRecebido, current); // 0 se same month
+      // meses desde data correta (para nível correto) - 0 para o mês baseCorreto
+      const msDesdeCorreto = monthsDiff(baseCorreto, current);
 
-      // Progressões futuras: após 24 e 48 meses
-      if (i >= 24 && i < 48) salarioCorreto = obterSalario(ano, mes, 'D303');
-      else if (i >= 48) salarioCorreto = obterSalario(ano, mes, 'D304');
+      const nivelRecebido = nivelPorMesesDesde(msDesdeRecebido, 0); // começa em D301 no índice 0
+      const nivelCorreto = nivelPorMesesDesde(msDesdeCorreto, 1); // começa em D302 => offset 1
 
-      const diferenca = salarioCorreto - salarioRecebido;
-      const ferias = diferenca / 3 / 12;
-      const decimo = diferenca / 12;
-      const bruto = diferenca + ferias + decimo;
+      const salarioRecebido = obterSalario(ano, mes, nivelRecebido);
+      const salarioCorreto = obterSalario(ano, mes, nivelCorreto);
 
-      const jurosMensal = dados.juros / 100;
-      const correcaoMensal = dados.correcao / 100;
-      const fator = Math.pow(1 + jurosMensal + correcaoMensal, meses - i);
+      const diffSalario = Math.max(0, salarioCorreto - salarioRecebido);
+
+      // férias: 1/3 anual => proporcional mensal = diff/36 ; 13º proporcional mensal = diff/12
+      const ferias = diffSalario / 36;
+      const decimo = diffSalario / 12;
+      const bruto = diffSalario + ferias + decimo;
+
+      // meses até o fim (se mesmo mês => 0)
+      const mesesAteFim = monthsDiff(current, fim);
+      const fator = Math.pow(1 + jurosMensal + correcaoMensal, mesesAteFim);
       const valorCorrigido = bruto * fator;
 
       totalNominal += bruto;
       totalCorrigido += valorCorrigido;
 
-      // Soma apenas os últimos 60 meses
-      if (i >= inicio60) {
-        totalNominal60 += bruto;
-        totalCorrigido60 += valorCorrigido;
-      }
-
       linhas.push({
-        mesAno: dataAtual.toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' }),
-        diferenca: diferenca.toFixed(2),
+        mesAno: current.toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' }),
+        nivelRecebido,
+        nivelCorreto,
+        diferenca: diffSalario.toFixed(2),
         ferias: ferias.toFixed(2),
         decimo: decimo.toFixed(2),
         bruto: bruto.toFixed(2),
         valorCorrigido: valorCorrigido.toFixed(2),
+        // numérico para cálculos posteriores
+        brutoNum: bruto,
+        valorCorrigidoNum: valorCorrigido,
       });
+
+      // avança 1 mês
+      current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
     }
 
+    // totais últimos 60 meses
+    const limite = 60;
+    const inicio60 = Math.max(0, linhas.length - limite);
+    const ultimos60 = linhas.slice(inicio60);
+    const totalNominal60 = ultimos60.reduce((s, r) => s + r.brutoNum, 0);
+    const totalCorrigido60 = ultimos60.reduce((s, r) => s + r.valorCorrigidoNum, 0);
+
     setResultado({
-      periodo: `${inicio.toLocaleDateString('pt-BR')} a ${fim.toLocaleDateString('pt-BR')}`,
-      meses,
+      periodo: `${baseCorreto.toLocaleDateString('pt-BR')} a ${fim.toLocaleDateString('pt-BR')}`,
+      meses: mesesTotais,
       totalNominal: totalNominal.toFixed(2),
       totalCorrigido: totalCorrigido.toFixed(2),
       totalNominal60: totalNominal60.toFixed(2),
       totalCorrigido60: totalCorrigido60.toFixed(2),
-      aviso: meses > limiteMeses ? `O cálculo foi limitado aos últimos ${limiteMeses} meses para retroação.` : ''
+      aviso: linhas.length > limite ? `Detalhamento exibido completo; totais incluem todo o período e também últimos ${limite} meses.` : ''
     });
 
     setDetalhamento(linhas);
@@ -171,6 +219,8 @@ export default function CalculadoraPrejuizoEBTT() {
             <thead className="bg-gray-100">
               <tr>
                 <th className="border p-2">Mês/Ano</th>
+                <th className="border p-2">Nível Recebido</th>
+                <th className="border p-2">Nível Correto</th>
                 <th className="border p-2">Diferença</th>
                 <th className="border p-2">1/3 Férias</th>
                 <th className="border p-2">13º Proporcional</th>
@@ -182,6 +232,8 @@ export default function CalculadoraPrejuizoEBTT() {
               {detalhamento.map((linha, idx) => (
                 <tr key={idx} className="text-center">
                   <td className="border p-2">{linha.mesAno}</td>
+                  <td className="border p-2">{linha.nivelRecebido}</td>
+                  <td className="border p-2">{linha.nivelCorreto}</td>
                   <td className="border p-2">R$ {linha.diferenca}</td>
                   <td className="border p-2">R$ {linha.ferias}</td>
                   <td className="border p-2">R$ {linha.decimo}</td>
